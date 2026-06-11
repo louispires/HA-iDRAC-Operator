@@ -148,10 +148,9 @@ class ServerWorker:
                 else:
                     self.ipmi.apply_dell_fan_control_profile()
             else:
-                self._log("info", "Fan control is disabled for this server. Setting to Dell Auto.")
-                self.ipmi.apply_dell_fan_control_profile()
-
-
+                self._log("info", "Fan control is disabled for this server. Leaving existing fan settings.")
+                # self.ipmi.apply_dell_fan_control_profile()  
+            
             status_data = {"hottest_cpu_temp": hottest_cpu, "inlet_temp": temps.get('inlet_temp'), "exhaust_temp": temps.get('exhaust_temp'), "power": power, "target_fan_speed": None if isinstance(target_fan_speed, str) else target_fan_speed, "cpus": temps.get('cpu_temps', []), "fans": fans, "psus": psu_statuses}
             with status_lock:
                 ALL_SERVERS_STATUS[self.alias] = {"alias": self.alias, "ip": self.config['idrac_ip'], "last_updated": time.strftime("%Y-%m-%d %H:%M:%S %Z"), "hottest_cpu_temp_c": hottest_cpu, "inlet_temp_c": temps.get('inlet_temp'), "exhaust_temp_c": temps.get('exhaust_temp'), "power_consumption_watts": power, "target_fan_speed_percent": target_fan_speed, "cpu_temps_c": temps.get('cpu_temps', []), "actual_fan_rpms": fans, "psu_statuses": psu_statuses}
