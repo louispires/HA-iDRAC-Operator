@@ -10,20 +10,22 @@ _IDRAC_USER = ""
 _IDRAC_PASSWORD = ""
 _IPMI_BASE_ARGS = []
 _LOG_LEVEL = "info" 
+_PRIVILEGE_LEVEL = "ADMINISTRATOR"
 
 # --- Configuration ---
-def configure_ipmi(ip, user, password, conn_type="lanplus", log_level="info"):
-    global _IDRAC_IP, _IDRAC_USER, _IDRAC_PASSWORD, _IPMI_BASE_ARGS, _LOG_LEVEL
+def configure_ipmi(ip, user, password, conn_type="lanplus", log_level="info", privilege_level="ADMINISTRATOR"):
+    global _IDRAC_IP, _IDRAC_USER, _IDRAC_PASSWORD, _IPMI_BASE_ARGS, _LOG_LEVEL, _PRIVILEGE_LEVEL
     _IDRAC_IP = ip
     _IDRAC_USER = user
     _IDRAC_PASSWORD = password
     _LOG_LEVEL = log_level.lower()
+    _PRIVILEGE_LEVEL = privilege_level
 
     if conn_type.lower() == "local" or conn_type.lower() == "open":
         _IPMI_BASE_ARGS = ["-I", "open"]
         _log("info", f"IPMI configured for local access via 'open' interface.")
     else: 
-        _IPMI_BASE_ARGS = ["-I", "lanplus", "-H", _IDRAC_IP, "-U", _IDRAC_USER, "-P", _IDRAC_PASSWORD, "-L", "OPERATOR"]
+        _IPMI_BASE_ARGS = ["-I", "lanplus", "-H", _IDRAC_IP, "-U", _IDRAC_USER, "-P", _IDRAC_PASSWORD, "-L", _PRIVILEGE_LEVEL]
         _log("info", f"IPMI configured for lanplus access to host: {_IDRAC_IP}")
 
 # --- Logging ---
@@ -80,10 +82,22 @@ def decimal_to_hex_for_ipmi(decimal_value):
         return "0x00"
 
 def apply_dell_fan_control_profile():
+    # Gracefully exit if the privilege level is not high enough to control fans
+    global _PRIVILEGE_LEVEL
+    if _PRIVILEGE_LEVEL != "ADMINISTRATOR":
+        _log("info", f"Skipping manual fan control. iDRAC fan profile overrides require ADMINISTRATOR privileges (Current: {_PRIVILEGE_LEVEL}).")
+        return None
+        
     _log("info", "Attempting to apply Dell default dynamic fan control profile.")
     return _run_ipmi_command(["0x30", "0x30", "0x01", "0x01"])
 
 def apply_user_fan_control_profile(decimal_fan_speed):
+    # Gracefully exit if the privilege level is not high enough to control fans
+    global _PRIVILEGE_LEVEL
+    if _PRIVILEGE_LEVEL != "ADMINISTRATOR":
+        _log("info", f"Skipping manual fan control. iDRAC fan profile overrides require ADMINISTRATOR privileges (Current: {_PRIVILEGE_LEVEL}).")
+        return None
+        
     hex_fan_speed = decimal_to_hex_for_ipmi(decimal_fan_speed)
     _log("info", f"Attempting to apply user static fan control: {decimal_fan_speed}% ({hex_fan_speed})")
     
