@@ -78,6 +78,7 @@ def load_and_configure(mqtt_handler): # Pass mqtt_handler to set device_info
     addon_options = {
         "idrac_ip": os.getenv("IDRAC_IP"), "idrac_username": os.getenv("IDRAC_USERNAME"),
         "idrac_password": os.getenv("IDRAC_PASSWORD"),
+        "privilege_level": os.getenv("PRIVILEGE_LEVEL", "ADMINISTRATOR"),
         "check_interval_seconds": int(os.getenv("CHECK_INTERVAL_SECONDS", "60")),
         "log_level": os.getenv("LOG_LEVEL", "info").lower(),
         "temperature_unit": os.getenv("TEMPERATURE_UNIT", "C").upper(),
@@ -95,7 +96,7 @@ def load_and_configure(mqtt_handler): # Pass mqtt_handler to set device_info
 
     ipmi_manager.configure_ipmi(
         addon_options["idrac_ip"], addon_options["idrac_username"], 
-        addon_options["idrac_password"], log_level=log_level
+        addon_options["idrac_password"], log_level=log_level, privilege_level=addon_options["privilege_level"]
     )
 
     model_data = ipmi_manager.get_server_model_info()
