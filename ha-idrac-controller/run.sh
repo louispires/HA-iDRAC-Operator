@@ -5,6 +5,7 @@ echo "[RUN.SH] >>> Add-on execution started at $(date)"
 IDRAC_IP_DEFAULT=""
 IDRAC_USERNAME_DEFAULT="root"
 IDRAC_PASSWORD_DEFAULT=""
+PRIVILEGE_LEVEL_DEFAULT="ADMINISTRATOR"
 CHECK_INTERVAL_SECONDS_DEFAULT=60
 LOG_LEVEL_DEFAULT="info"
 TEMPERATURE_UNIT_DEFAULT="C"
@@ -23,6 +24,7 @@ if [ -f /data/options.json ]; then
     export IDRAC_IP=$(jq -r '.idrac_ip // empty' /data/options.json)
     export IDRAC_USERNAME=$(jq -r '.idrac_username // "'"$IDRAC_USERNAME_DEFAULT"'"' /data/options.json)
     export IDRAC_PASSWORD=$(jq -r '.idrac_password // empty' /data/options.json)
+    export PRIVILEGE_LEVEL=$(jq -r '.privilege_level // empty' /data/options.json)
     export CHECK_INTERVAL_SECONDS=$(jq -r '.check_interval_seconds // "'"$CHECK_INTERVAL_SECONDS_DEFAULT"'"' /data/options.json)
     export LOG_LEVEL=$(jq -r '.log_level // "'"$LOG_LEVEL_DEFAULT"'"' /data/options.json)
 
@@ -41,6 +43,7 @@ else
     export IDRAC_IP="$IDRAC_IP_DEFAULT"
     export IDRAC_USERNAME="$IDRAC_USERNAME_DEFAULT"
     export IDRAC_PASSWORD="$IDRAC_PASSWORD_DEFAULT"
+    export PRIVILEGE_LEVEL="$PRIVILEGE_LEVEL_DEFAULT"
     export CHECK_INTERVAL_SECONDS="$CHECK_INTERVAL_SECONDS_DEFAULT"
     export LOG_LEVEL="$LOG_LEVEL_DEFAULT"
     export TEMPERATURE_UNIT="$TEMPERATURE_UNIT_DEFAULT"
@@ -56,6 +59,7 @@ fi
 
 echo "[RUN.SH] Effective Configuration:"
 echo "[RUN.SH]   IDRAC_IP: ${IDRAC_IP}"
+echo "[RUN.SH]   PRIVILEGE_LEVEL: ${PRIVILEGE_LEVEL}"
 echo "[RUN.SH]   LOG_LEVEL: ${LOG_LEVEL}"
 echo "[RUN.SH]   TEMP_UNIT: ${TEMPERATURE_UNIT}"
 echo "[RUN.SH]   BASE_FAN_SPEED: ${BASE_FAN_SPEED_PERCENT}%"
