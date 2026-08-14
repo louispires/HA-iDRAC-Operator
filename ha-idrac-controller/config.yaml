@@ -1,7 +1,7 @@
 # HA-iDRAC/ha-idrac-controller/config.yaml
 
 name: "HA iDRAC Controller"
-version: "0.1.2" # Incremented version
+version: "0.3.0" # Incremented version
 slug: "ha_idrac_controller"
 description: "Control Dell iDRAC fan speeds and monitor server health in Home Assistant."
 arch:
@@ -22,7 +22,8 @@ options:
   idrac_ip: ""
   idrac_username: "root"
   idrac_password: ""           # Secret
-
+  privilege_level: "ADMINISTRATOR" # must be ADMINISTRATOR or OPERATOR
+  
   # Fan Control Logic
   temperature_unit: "C"        # C or F
   base_fan_speed_percent: 20   # Default fan speed if below low_temp_threshold
@@ -45,6 +46,7 @@ schema:
   idrac_ip: "str"
   idrac_username: "str"
   idrac_password: "password"
+  privilege_level: "list(ADMINISTRATOR|OPERATOR)" # Validates only these two choices
 
   # Fan Control Logic
   temperature_unit: "list(C|F)"
