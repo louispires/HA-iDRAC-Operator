@@ -1,3 +1,9 @@
+## 0.1.0-dev.19 - 2026-09-22
+
+* 🚀 **Performance**: Each server now builds a local SDR cache (`/data/sdr_cache_<ip>.bin`) at startup and passes it to `ipmitool` with `-S`. Without it, every single sensor read re-downloads the whole sensor repository over the network, which is slow enough to time out on large chassis such as the R730xd.
+* 🔧 **Improvement**: Raised sensor read timeouts (temperature and fan 30s, full SDR list 45s) to suit servers with many sensors.
+* 🔧 **Improvement**: The SDR cache is rebuilt automatically after five consecutive failed cycles, so a stale cache cannot permanently break sensor reads.
+
 ## 0.1.0-dev.18 - 2026-09-22
 
 * 🐛 **Bug Fix**: Added exponential backoff when a server stops responding. A timed-out `ipmitool` call leaves its session open on the iDRAC, so polling a struggling BMC every cycle exhausted its session table and produced a self-sustaining loop of "insufficient resources for session" errors. Backoff now doubles from the check interval up to a 15 minute ceiling and resets on the first clean read.

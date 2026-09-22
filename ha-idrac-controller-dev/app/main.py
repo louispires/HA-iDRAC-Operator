@@ -94,6 +94,8 @@ class ServerWorker:
 
         model_data = self.ipmi.get_server_model_info()
         if model_data: self.server_info.update(model_data)
+
+        self.ipmi.ensure_sdr_cache()
         
         self.mqtt.configure_broker(self.global_opts["mqtt_host"], self.global_opts["mqtt_port"], self.global_opts["mqtt_username"], self.global_opts["mqtt_password"], self.log_level)
         self.mqtt.set_device_info(server_alias=self.alias, manufacturer=self.server_info.get("manufacturer"), model=self.server_info.get("model"), ip_address=self.config.get("idrac_ip"))
@@ -119,6 +121,9 @@ class ServerWorker:
                 self.consecutive_failures += 1
                 delay = self._backoff_seconds()
                 self._log("warning", f"Sensor read failed ({self.consecutive_failures} in a row). Backing off {delay}s before retrying.")
+                if self.consecutive_failures == 5:
+                    self.ipmi.invalidate_sdr_cache()
+                    self.ipmi.ensure_sdr_cache()
                 self.mqtt.publish(self.mqtt.availability_topic, "offline", retain=True)
                 self._sleep(delay)
                 continue
