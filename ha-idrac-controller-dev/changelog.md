@@ -1,3 +1,8 @@
+## 0.1.0-dev.18 - 2026-09-22
+
+* 🐛 **Bug Fix**: Added exponential backoff when a server stops responding. A timed-out `ipmitool` call leaves its session open on the iDRAC, so polling a struggling BMC every cycle exhausted its session table and produced a self-sustaining loop of "insufficient resources for session" errors. Backoff now doubles from the check interval up to a 15 minute ceiling and resets on the first clean read.
+* 🔧 **Improvement**: Worker sleeps are now interruptible, so the add-on shuts down promptly instead of blocking for up to a full interval.
+
 ## 0.1.0-dev.17 - 2026-09-22
 
 * 🐛 **Bug Fix**: Adding a server no longer ends on a 404. The redirect after Add, and the error redirects from Edit and Delete, resolved relative to the wrong path (for example `/servers/servers`).

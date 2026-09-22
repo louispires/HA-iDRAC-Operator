@@ -44,6 +44,7 @@ class ServerWorker:
 
         self.server_info = {}
         self.discovered_sensors = set()
+        self.consecutive_failures = 0
 
     def _log(self, level, message):
         print(f"[{level.upper()}] [{self.alias}] {message}", flush=True)
@@ -53,6 +54,20 @@ class ServerWorker:
         if value is None or self.temp_unit != "F":
             return value
         return (float(value) - 32.0) * 5.0 / 9.0
+
+    def _sleep(self, seconds):
+        """Wake early on shutdown instead of blocking for the whole interval."""
+        deadline = time.time() + max(0.0, seconds)
+        while self.running and running:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.5, remaining))
+
+    def _backoff_seconds(self):
+        """A timed-out ipmitool leaves a session open on the BMC; retrying too fast exhausts them."""
+        interval = self.global_opts["check_interval_seconds"]
+        return min(interval * (2 ** min(self.consecutive_failures - 1, 5)), 900)
 
     def _on_mqtt_message(self, topic, payload):
         command_topic = f"{self.mqtt.base_topic}/command/shutdown"
@@ -101,17 +116,29 @@ class ServerWorker:
             
             raw_temp_data = self.ipmi.retrieve_temperatures_raw()
             if raw_temp_data is None:
+                self.consecutive_failures += 1
+                delay = self._backoff_seconds()
+                self._log("warning", f"Sensor read failed ({self.consecutive_failures} in a row). Backing off {delay}s before retrying.")
                 self.mqtt.publish(self.mqtt.availability_topic, "offline", retain=True)
-                time.sleep(60)
+                self._sleep(delay)
                 continue
 
             self.mqtt.publish(self.mqtt.availability_topic, "online", retain=True)
             
             temps = self.ipmi.parse_temperatures(raw_temp_data, r"Temp", r"Inlet Temp", r"Exhaust Temp")
-            fans = self.ipmi.parse_fan_rpms(self.ipmi.retrieve_fan_rpms_raw())
+            raw_fan_data = self.ipmi.retrieve_fan_rpms_raw()
+            fans = self.ipmi.parse_fan_rpms(raw_fan_data)
             power_sdr_data = self.ipmi.retrieve_power_sdr_raw()
             power = self.ipmi.parse_power_consumption(power_sdr_data)
             psu_statuses = self.ipmi.get_power_status(power_sdr_data)
+
+            if raw_fan_data is None or power_sdr_data is None:
+                self.consecutive_failures += 1
+                self._log("warning", f"Partial sensor read ({self.consecutive_failures} failed cycles in a row). Publishing what was collected.")
+            else:
+                if self.consecutive_failures:
+                    self._log("info", "Sensor reads recovered.")
+                self.consecutive_failures = 0
 
             hottest_cpu = max(temps['cpu_temps']) if temps['cpu_temps'] else None
             target_fan_speed = "Dell Auto"
@@ -163,7 +190,10 @@ class ServerWorker:
                 ALL_SERVERS_STATUS[self.alias] = {"alias": self.alias, "ip": self.config['idrac_ip'], "last_updated": time.strftime("%Y-%m-%d %H:%M:%S %Z"), "hottest_cpu_temp_c": hottest_cpu, "inlet_temp_c": temps.get('inlet_temp'), "exhaust_temp_c": temps.get('exhaust_temp'), "power_consumption_watts": power, "target_fan_speed_percent": target_fan_speed, "cpu_temps_c": temps.get('cpu_temps', []), "actual_fan_rpms": fans, "psu_statuses": psu_statuses}
             
             self._publish_mqtt_data(status_data)
-            time.sleep(max(0.1, self.global_opts["check_interval_seconds"] - (time.time() - start_time)))
+            if self.consecutive_failures:
+                self._sleep(self._backoff_seconds())
+            else:
+                self._sleep(max(0.1, self.global_opts["check_interval_seconds"] - (time.time() - start_time)))
 
 
     def _publish_mqtt_data(self, status):
