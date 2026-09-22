@@ -171,7 +171,8 @@ class IPMIManager:
         if not sdr_data:
             return None
         
-        power_line_regex = re.compile(r"^(Pwr Consumption.*?)\s*\|.*?\s*([\d\.]+)\s*Watts", re.IGNORECASE)
+        # iDRAC 6 reports power as "System Level"; iDRAC 7+ as "Pwr Consumption".
+        power_line_regex = re.compile(r"^(Pwr Consumption|System Level.*?)\s*\|.*?\s*([\d\.]+)\s*Watts", re.IGNORECASE)
         for line in sdr_data.splitlines():
             match = power_line_regex.search(line)
             if match:

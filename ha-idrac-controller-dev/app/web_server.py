@@ -92,7 +92,7 @@ def edit_server_form(alias):
         server_to_edit.setdefault('pid_config', {})
         server_to_edit.setdefault('target_temp', 55)
         server_to_edit.setdefault('fan_control_enabled', True)
-        return render_template('edit_server.html', server=server_to_edit)
+        return render_template('edit_server.html', server=server_to_edit, defaults=global_config)
     flash(f"Server '{alias}' not found.", "error")
     return redirect('servers')
 

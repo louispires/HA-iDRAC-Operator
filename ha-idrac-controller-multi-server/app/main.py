@@ -35,6 +35,7 @@ class ServerWorker:
         self.global_opts = global_opts
         self.alias = self.config['alias']
         self.log_level = self.global_opts['log_level']
+        self.temp_unit = self.global_opts.get('temperature_unit', 'C')
         self.running = True
         
         self.ipmi = IPMIManager(ip=self.config['idrac_ip'], user=self.config['idrac_username'], password=self.config['idrac_password'], log_level=self.log_level)
@@ -47,6 +48,12 @@ class ServerWorker:
     def _log(self, level, message):
         print(f"[{level.upper()}] [{self.alias}] {message}", flush=True)
 
+    def _to_celsius(self, value):
+        """User-entered thresholds follow temperature_unit; IPMI always reports Celsius."""
+        if value is None or self.temp_unit != "F":
+            return value
+        return (float(value) - 32.0) * 5.0 / 9.0
+
     def _on_mqtt_message(self, topic, payload):
         command_topic = f"{self.mqtt.base_topic}/command/shutdown"
         if topic == command_topic and payload == "PRESS":
@@ -57,7 +64,7 @@ class ServerWorker:
         self._log("info", "Initializing server worker...")
         
         pid_config = self.config.get('pid_config', {})
-        self.pid.setpoint = pid_config.get('target_temp', 55)
+        self.pid.setpoint = self._to_celsius(pid_config.get('target_temp', 55))
         self.pid.set_gains(pid_config.get('kp', 4.0), pid_config.get('ki', 0.2), pid_config.get('kd', 0.1))
 
         if os.path.exists(PID_STATE_FILE):
@@ -107,45 +114,49 @@ class ServerWorker:
             psu_statuses = self.ipmi.get_power_status(power_sdr_data)
 
             hottest_cpu = max(temps['cpu_temps']) if temps['cpu_temps'] else None
-            fan_mode = self.config.get('fan_mode', 'simple')
             target_fan_speed = "Dell Auto"
-            
-            if hottest_cpu:
-                crit_thresh = self.config.get('critical_temp_threshold', 65)
+
+            if self.config.get('fan_control_enabled', True):
+                fan_mode = self.config.get('fan_mode', 'simple')
                 
-                if hottest_cpu >= crit_thresh:
+                if hottest_cpu:
+                    crit_thresh = self._to_celsius(self.config.get('critical_temp_threshold', 65))
+                    
+                    if hottest_cpu >= crit_thresh:
+                        self.ipmi.apply_dell_fan_control_profile()
+                    elif fan_mode == 'simple':
+                        low_thresh = self._to_celsius(self.config.get('low_temp_threshold', 45))
+                        if hottest_cpu >= low_thresh: target_fan_speed = self.config.get('high_temp_fan_speed_percent', 50)
+                        else: target_fan_speed = self.config.get('base_fan_speed_percent', 20)
+                        self.ipmi.apply_user_fan_control_profile(target_fan_speed)
+                    elif fan_mode == 'target':
+                        # Get the base fan speed to use with the PID controller
+                        base_fan = self.config.get('base_fan_speed_percent', 20)
+                        speed = self.pid.update(hottest_cpu, base_fan) # Pass the base speed
+                        if speed is not None:
+                            target_fan_speed = speed
+                            self.ipmi.apply_user_fan_control_profile(target_fan_speed)
+                    elif fan_mode == 'curve':
+                        fan_curve = [{'temp': self._to_celsius(p['temp']), 'speed': p['speed']} for p in self.config.get('fan_curve', [])]
+                        if len(fan_curve) >= 2:
+                            lower, upper = fan_curve[0], fan_curve[-1]
+                            for i in range(len(fan_curve) - 1):
+                                if fan_curve[i]['temp'] <= hottest_cpu < fan_curve[i+1]['temp']:
+                                    lower, upper = fan_curve[i], fan_curve[i+1]; break
+                            
+                            if hottest_cpu < lower['temp']: speed = lower['speed']
+                            elif hottest_cpu >= upper['temp']: speed = upper['speed']
+                            else:
+                                temp_range = upper['temp'] - lower['temp']
+                                speed_range = upper['speed'] - lower['speed']
+                                speed = lower['speed'] + ((hottest_cpu - lower['temp']) / temp_range * speed_range) if temp_range > 0 else lower['speed']
+                            
+                            target_fan_speed = int(speed)
+                            self.ipmi.apply_user_fan_control_profile(target_fan_speed)
+                else:
                     self.ipmi.apply_dell_fan_control_profile()
-                elif fan_mode == 'simple':
-                    low_thresh = self.config.get('low_temp_threshold', 45)
-                    if hottest_cpu >= low_thresh: target_fan_speed = self.config.get('high_temp_fan_speed_percent', 50)
-                    else: target_fan_speed = self.config.get('base_fan_speed_percent', 20)
-                    self.ipmi.apply_user_fan_control_profile(target_fan_speed)
-                elif fan_mode == 'target':
-                    # Get the base fan speed to use with the PID controller
-                    base_fan = self.config.get('base_fan_speed_percent', 20)
-                    speed = self.pid.update(hottest_cpu, base_fan) # Pass the base speed
-                    if speed is not None:
-                        target_fan_speed = speed
-                        self.ipmi.apply_user_fan_control_profile(target_fan_speed)
-                elif fan_mode == 'curve':
-                    fan_curve = self.config.get('fan_curve', [])
-                    if len(fan_curve) >= 2:
-                        lower, upper = fan_curve[0], fan_curve[-1]
-                        for i in range(len(fan_curve) - 1):
-                            if fan_curve[i]['temp'] <= hottest_cpu < fan_curve[i+1]['temp']:
-                                lower, upper = fan_curve[i], fan_curve[i+1]; break
-                        
-                        if hottest_cpu < lower['temp']: speed = lower['speed']
-                        elif hottest_cpu >= upper['temp']: speed = upper['speed']
-                        else:
-                            temp_range = upper['temp'] - lower['temp']
-                            speed_range = upper['speed'] - lower['speed']
-                            speed = lower['speed'] + ((hottest_cpu - lower['temp']) / temp_range * speed_range) if temp_range > 0 else lower['speed']
-                        
-                        target_fan_speed = int(speed)
-                        self.ipmi.apply_user_fan_control_profile(target_fan_speed)
             else:
-                 self.ipmi.apply_dell_fan_control_profile()
+                self._log("info", "Fan control is disabled for this server. Leaving existing fan settings.")
 
             status_data = {"hottest_cpu_temp": hottest_cpu, "inlet_temp": temps.get('inlet_temp'), "exhaust_temp": temps.get('exhaust_temp'), "power": power, "target_fan_speed": None if isinstance(target_fan_speed, str) else target_fan_speed, "cpus": temps.get('cpu_temps', []), "fans": fans, "psus": psu_statuses}
             with status_lock:
@@ -212,7 +223,8 @@ if __name__ == "__main__":
     print("[MAIN] ===== HA iDRAC Multi-Server Controller Starting =====", flush=True)
 
     global_options = {
-        "log_level": os.getenv("LOG_LEVEL", "info"), "check_interval_seconds": int(os.getenv("CHECK_INTERVAL_SECONDS", 60)),
+        "log_level": os.getenv("LOG_LEVEL", "info"), "check_interval_seconds": int(os.getenv("CHECK_INTERVAL_SECONDS", 30)),
+        "temperature_unit": os.getenv("TEMPERATURE_UNIT", "C").upper(),
         "mqtt_host": os.getenv("MQTT_HOST", "core-mosquitto"), "mqtt_port": int(os.getenv("MQTT_PORT", 1883)),
         "mqtt_username": os.getenv("MQTT_USERNAME", ""), "mqtt_password": os.getenv("MQTT_PASSWORD", ""),
         "base_fan_speed_percent": int(os.getenv("BASE_FAN_SPEED_PERCENT", 20)), "low_temp_threshold": int(os.getenv("LOW_TEMP_THRESHOLD", 45)),

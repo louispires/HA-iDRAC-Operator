@@ -51,7 +51,7 @@
                     <input type="number" id="base_fan_speed_percent" name="base_fan_speed_percent" value="{{ defaults.base_fan_speed_percent }}" min="0" max="100">
                 </div>
                 <div class="form-group">
-                    <label for="low_temp_threshold">Low Temp Threshold (°C)</label>
+                    <label for="low_temp_threshold">Low Temp Threshold (°{{ defaults.temperature_unit or 'C' }})</label>
                     <input type="number" id="low_temp_threshold" name="low_temp_threshold" value="{{ defaults.low_temp_threshold }}" min="0" max="100">
                 </div>
                 <div class="form-group">
@@ -59,7 +59,7 @@
                     <input type="number" id="high_temp_fan_speed_percent" name="high_temp_fan_speed_percent" value="{{ defaults.high_temp_fan_speed_percent }}" min="0" max="100">
                 </div>
                  <div class="form-group">
-                    <label for="critical_temp_threshold">Critical Temp Threshold (°C)</label>
+                    <label for="critical_temp_threshold">Critical Temp Threshold (°{{ defaults.temperature_unit or 'C' }})</label>
                     <input type="number" id="critical_temp_threshold" name="critical_temp_threshold" value="{{ defaults.critical_temp_threshold }}" min="0" max="100">
                 </div>
                 <div class="form-actions">
