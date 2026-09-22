@@ -1,6 +1,5 @@
 # HA-iDRAC/ha-idrac-controller-dev/app/web_server.py
 from flask import Flask, render_template, request, redirect, flash
-from markupsafe import Markup
 import os
 import json
 import logging
@@ -30,9 +29,7 @@ def save_servers_config(servers):
         try:
             with open(SERVERS_CONFIG_FILE, 'w') as f:
                 json.dump(servers, f, indent=4)
-            restart_url = "/hassio/dashboard"
-            message = Markup(f"Configuration saved! <a href='{restart_url}' target='_top'>Click here to go to the Add-ons dashboard to RESTART</a> for changes to take effect.")
-            flash(message, "success")
+            flash("Configuration saved! Go to Settings > Add-ons > iDRAC Controller and click RESTART for changes to take effect.", "success")
             return True
         except IOError:
             flash("Error: Could not write to config file.", "error")

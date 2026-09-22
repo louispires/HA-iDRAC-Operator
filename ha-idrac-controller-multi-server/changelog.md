@@ -1,3 +1,7 @@
+## 0.1.0-ms.9 - 2026-09-22
+
+* 🐛 **Bug Fix**: The "Configuration saved" toast no longer links to `/hassio/dashboard` — that path 404s on many reverse-proxy/ingress setups. It now just tells you to restart via Settings > Add-ons.
+
 ## 0.1.0-ms.8 - 2026-09-22
 
 * 🚀 **Performance**: Each server now builds a local SDR cache (`/data/sdr_cache_<ip>.bin`) at startup and passes it to `ipmitool` with `-S`. Without it, every single sensor read re-downloads the whole sensor repository over the network, which is slow enough to time out on large chassis such as the R730xd.
