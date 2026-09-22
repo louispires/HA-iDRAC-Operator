@@ -38,7 +38,7 @@ class ServerWorker:
         self.temp_unit = self.global_opts.get('temperature_unit', 'C')
         self.running = True
         
-        self.ipmi = IPMIManager(ip=self.config['idrac_ip'], user=self.config['idrac_username'], password=self.config['idrac_password'], log_level=self.log_level)
+        self.ipmi = IPMIManager(ip=self.config['idrac_ip'], user=self.config['idrac_username'], password=self.config['idrac_password'], log_level=self.log_level, privilege_level=self.config.get('privilege_level', 'ADMINISTRATOR'))
         self.mqtt = MqttClient(client_id=f"ha_idrac_{self.alias}")
         self.pid = PIDController()
 

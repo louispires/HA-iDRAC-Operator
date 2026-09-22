@@ -1,3 +1,14 @@
+## 0.1.0-dev.17 - 2026-09-22
+
+* 🐛 **Bug Fix**: Adding a server no longer ends on a 404. The redirect after Add, and the error redirects from Edit and Delete, resolved relative to the wrong path (for example `/servers/servers`).
+* 🎨 **UI Improvement**: Setting Fan Control to "Disabled (Monitor Only)" now hides the fan speed, threshold, and fan mode fields on the Add and Edit Server pages.
+
+## 0.1.0-dev.16 - 2026-09-22
+
+* 🔒 **Security Fix**: The iDRAC password is no longer written to the add-on log. Failed and timed-out `ipmitool` invocations previously logged the full command line, including `-P <password>` in plaintext.
+* ✨ **New Feature**: Added a per-server **IPMI Privilege Level** setting (Administrator or Operator). The level is passed to `ipmitool` as `-L`, which is required by iDRACs that reject sessions when the requested privilege exceeds the account's assigned level.
+* 🔧 **Improvement**: When a server is set to Operator, manual fan control commands are skipped with a log message instead of failing repeatedly, since Dell fan profile overrides require Administrator.
+
 ## 0.1.0-dev.15 - 2026-09-22
 
 * 🐛 **Bug Fix**: The `temperature_unit` option now actually works. When set to `F`, fan thresholds, the PID target temperature, and fan curve points are converted to Celsius before being compared against sensor readings. Previously the option was read by `run.sh` but ignored by the app, so Fahrenheit values were treated as Celsius.

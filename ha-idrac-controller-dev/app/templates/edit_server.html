@@ -19,14 +19,22 @@
                     <div class="form-group"><label for="idrac_password">New Password</label><input type="password" id="idrac_password" name="idrac_password" placeholder="Leave blank to keep existing"></div>
                     <div class="form-group"><label for="enabled">Enabled</label><select id="enabled" name="enabled"><option value="true" {% if server.enabled %}selected{% endif %}>Yes</option><option value="false" {% if not server.enabled %}selected{% endif %}>No</option></select></div>
                     <div class="form-group">
+                        <label for="privilege_level">IPMI Privilege Level</label>
+                        <select id="privilege_level" name="privilege_level">
+                            <option value="ADMINISTRATOR" {% if server.privilege_level != 'OPERATOR' %}selected{% endif %}>Administrator</option>
+                            <option value="OPERATOR" {% if server.privilege_level == 'OPERATOR' %}selected{% endif %}>Operator (no fan control)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="fan_control_enabled">Fan Control</label>
-                        <select id="fan_control_enabled" name="fan_control_enabled">
+                        <select id="fan_control_enabled" name="fan_control_enabled" onchange="updateFanControlVisibility()">
                             <option value="true" {% if server.fan_control_enabled %}selected{% endif %}>Enabled</option>
                             <option value="false" {% if not server.fan_control_enabled %}selected{% endif %}>Disabled (Monitor Only)</option>
                         </select>
                     </div>
                 </div>
 
+                <div id="fan-settings">
                 <hr>
                 <h2>Fan Control Mode</h2>
                 <div class="form-group">
@@ -87,6 +95,7 @@
                     </div>
                     <button type="button" class="add-point" onclick="addPoint()">Add Point</button>
                 </div>
+                </div>
 
                 <hr>
                 <div class="form-actions"><button type="submit">Save Changes</button></div>
@@ -100,6 +109,12 @@
             document.getElementById('simple-mode').style.display = (mode === 'simple') ? 'block' : 'none';
             document.getElementById('target-mode').style.display = (mode === 'target') ? 'block' : 'none';
             document.getElementById('curve-mode').style.display = (mode === 'curve') ? 'block' : 'none';
+        }
+
+        // Hidden inputs still submit, so existing fan settings are preserved for monitor-only servers.
+        function updateFanControlVisibility() {
+            const enabled = document.getElementById('fan_control_enabled').value === 'true';
+            document.getElementById('fan-settings').style.display = enabled ? 'block' : 'none';
         }
 
         let pointCounter = parseInt('{{ server.fan_curve|length }}', 10);
@@ -123,7 +138,10 @@
         }
 
         // Run on page load to set the initial correct view
-        document.addEventListener('DOMContentLoaded', updateFanMode);
+        document.addEventListener('DOMContentLoaded', function () {
+            updateFanMode();
+            updateFanControlVisibility();
+        });
     </script>
 
     <style>
