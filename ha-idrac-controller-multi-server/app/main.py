@@ -70,10 +70,14 @@ class ServerWorker:
         return min(interval * (2 ** min(self.consecutive_failures - 1, 5)), 900)
 
     def _on_mqtt_message(self, topic, payload):
-        command_topic = f"{self.mqtt.base_topic}/command/shutdown"
-        if topic == command_topic and payload == "PRESS":
+        shutdown_topic = f"{self.mqtt.base_topic}/command/shutdown"
+        power_on_topic = f"{self.mqtt.base_topic}/command/power_on"
+        if topic == shutdown_topic and payload == "PRESS":
             self._log("info", "Shutdown command received via MQTT.")
             self.ipmi.chassis_shutdown()
+        elif topic == power_on_topic and payload == "PRESS":
+            self._log("info", "Power on command received via MQTT.")
+            self.ipmi.chassis_power_on()
 
     def _initialize(self):
         self._log("info", "Initializing server worker...")
@@ -102,6 +106,7 @@ class ServerWorker:
         self.mqtt.connect()
         self.mqtt.message_callback = self._on_mqtt_message
         self.mqtt.subscribe(f"{self.mqtt.base_topic}/command/shutdown")
+        self.mqtt.subscribe(f"{self.mqtt.base_topic}/command/power_on")
 
         for _ in range(10):
             if self.mqtt.is_connected: return True
@@ -203,7 +208,8 @@ class ServerWorker:
 
     def _publish_mqtt_data(self, status):
         sensors = {
-            "shutdown_button": {"component": "button", "name": "Shutdown Server", "device_class": "restart", "icon": "mdi:server-off"},
+            "power_on_button": {"component": "button", "name": "Power On Server", "icon": "mdi:power", "cmd_topic": f"{self.mqtt.base_topic}/command/power_on"},
+            "shutdown_button": {"component": "button", "name": "Shutdown Server", "device_class": "restart", "icon": "mdi:server-off", "cmd_topic": f"{self.mqtt.base_topic}/command/shutdown"},
             "hottest_cpu_temp": {"component": "sensor", "device_class": "temperature", "unit": "°C"},
             "inlet_temp": {"component": "sensor", "device_class": "temperature", "unit": "°C"},
             "exhaust_temp": {"component": "sensor", "device_class": "temperature", "unit": "°C"},
@@ -216,7 +222,7 @@ class ServerWorker:
 
         for slug, desc in sensors.items():
             if slug not in self.discovered_sensors:
-                cmd_topic = f"{self.mqtt.base_topic}/command/shutdown" if desc['component'] == 'button' else None
+                cmd_topic = desc.get('cmd_topic', f"{self.mqtt.base_topic}/command/shutdown" if desc['component'] == 'button' else None)
                 self.mqtt.publish_discovery(desc['component'], slug, desc.get('name', slug.replace("_", " ").title()), desc.get('device_class'), desc.get('unit'), desc.get('icon'), cmd_topic, None, desc.get('state_class'))
                 self.discovered_sensors.add(slug)
             

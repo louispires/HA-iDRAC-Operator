@@ -1,3 +1,8 @@
+## 0.1.0-ms.10 - 2026-10-01
+
+* ✨ **New Feature**: Added `chassis_power_on` and `chassis_power_control` methods to `IPMIManager` to power on servers via IPMI.
+* ✨ **New Feature**: Added a "Power On Server" button entity in Home Assistant via MQTT Discovery (`command/power_on`).
+
 ## 0.1.0-ms.9 - 2026-09-22
 
 * 🐛 **Bug Fix**: The "Configuration saved" toast no longer links to `/hassio/dashboard` — that path 404s on many reverse-proxy/ingress setups. It now just tells you to restart via Settings > Add-ons.

@@ -268,6 +268,21 @@ class IPMIManager:
         
         return final_status
 
+    def chassis_power_control(self, action):
+        """Sends an IPMI chassis power command (e.g. 'on', 'soft', 'off', 'cycle', 'reset', 'status')."""
+        valid_actions = ["on", "off", "soft", "cycle", "reset", "status"]
+        action_clean = str(action).strip().lower()
+        if action_clean not in valid_actions:
+            self._log("warning", f"Invalid chassis power action '{action}'. Valid actions: {valid_actions}")
+            return None
+        self._log("info", f"Sending chassis power {action_clean} command to server...")
+        return self._run_ipmi_command(["chassis", "power", action_clean], is_raw_command=False)
+
+    def chassis_power_on(self):
+        """Sends a power on command to the server."""
+        self._log("info", "Sending power on command to server...")
+        return self._run_ipmi_command(["chassis", "power", "on"], is_raw_command=False)
+
     def chassis_shutdown(self):
         """Sends a graceful ACPI shutdown command to the server."""
         self._log("info", "Sending graceful shutdown command to server...")
