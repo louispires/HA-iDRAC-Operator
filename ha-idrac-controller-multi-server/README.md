@@ -30,6 +30,7 @@ This add-on connects to your servers' iDRAC interfaces using IPMI to:
     * Power Consumption (Watts)
     * Target Fan Speed Percentage
     * PSU Status (OK/Problem)
+    * Server Power Status (Power ON/OFF)
     * Server Connectivity (Online/Offline)
 * **Remote Actions:**
     * **Power Control:** "Power On Server" and "Shutdown Server" buttons are created for each server in Home Assistant.
@@ -102,6 +103,7 @@ For each server, the add-on will create a new device in Home Assistant with the 
     * `button.idrac_server_alias_shutdown_server`
 * **Sensors:**
     * `binary_sensor.idrac_server_alias_status` (Online/Offline)
+    * `binary_sensor.idrac_server_alias_server_power` (Host Power: ON/OFF)
     * `binary_sensor.idrac_server_alias_psu_status` for each power supply.
     * Numerous sensors for temperatures, fan speeds, and power usage.
 

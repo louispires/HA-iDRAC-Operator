@@ -268,6 +268,18 @@ class IPMIManager:
         
         return final_status
 
+    def get_chassis_power_status(self):
+        """Queries the chassis power status via IPMI. Returns 'on', 'off', or None."""
+        output = self._run_ipmi_command(["chassis", "power", "status"], is_raw_command=False, timeout=10, use_sdr_cache=False)
+        if output:
+            output_lower = output.lower()
+            if "is on" in output_lower:
+                return "on"
+            elif "is off" in output_lower:
+                return "off"
+            self._log("warning", f"Unexpected chassis power status output: {output}")
+        return None
+
     def chassis_power_control(self, action):
         """Sends an IPMI chassis power command (e.g. 'on', 'soft', 'off', 'cycle', 'reset', 'status')."""
         valid_actions = ["on", "off", "soft", "cycle", "reset", "status"]
@@ -276,14 +288,14 @@ class IPMIManager:
             self._log("warning", f"Invalid chassis power action '{action}'. Valid actions: {valid_actions}")
             return None
         self._log("info", f"Sending chassis power {action_clean} command to server...")
-        return self._run_ipmi_command(["chassis", "power", action_clean], is_raw_command=False)
+        return self._run_ipmi_command(["chassis", "power", action_clean], is_raw_command=False, use_sdr_cache=False)
 
     def chassis_power_on(self):
         """Sends a power on command to the server."""
         self._log("info", "Sending power on command to server...")
-        return self._run_ipmi_command(["chassis", "power", "on"], is_raw_command=False)
+        return self._run_ipmi_command(["chassis", "power", "on"], is_raw_command=False, use_sdr_cache=False)
 
     def chassis_shutdown(self):
         """Sends a graceful ACPI shutdown command to the server."""
         self._log("info", "Sending graceful shutdown command to server...")
-        return self._run_ipmi_command(["chassis", "power", "soft"], is_raw_command=False)
+        return self._run_ipmi_command(["chassis", "power", "soft"], is_raw_command=False, use_sdr_cache=False)

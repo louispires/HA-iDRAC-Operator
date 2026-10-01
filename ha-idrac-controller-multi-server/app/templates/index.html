@@ -17,6 +17,12 @@
                 <p><em>Last updated: <strong>{{ server.last_updated }}</strong></em></p>
                 
                 <div class="status-grid">
+                    <div>
+                        <strong>Host Power:</strong> 
+                        <span style="font-weight: bold; color: {{ '#28a745' if server.power_state == 'on' else '#dc3545' }};">
+                            {{ server.power_state|upper if server.power_state else 'UNKNOWN' }}
+                        </span>
+                    </div>
                     <div><strong>Hottest CPU:</strong> {{ '%.1f'|format(server.hottest_cpu_temp_c) if server.hottest_cpu_temp_c is not none else 'N/A' }}°C</div>
                     <div><strong>Inlet Temp:</strong> {{ '%.1f'|format(server.inlet_temp_c) if server.inlet_temp_c is not none else 'N/A' }}°C</div>
                     <div><strong>Exhaust Temp:</strong> {{ '%.1f'|format(server.exhaust_temp_c) if server.exhaust_temp_c is not none else 'N/A' }}°C</div>

@@ -45,6 +45,9 @@ class ServerWorker:
         self.server_info = {}
         self.discovered_sensors = set()
         self.consecutive_failures = 0
+        self.known_cpus = 0
+        self.known_fans = {}
+        self.known_psus = {}
 
     def _log(self, level, message):
         print(f"[{level.upper()}] [{self.alias}] {message}", flush=True)
@@ -121,6 +124,8 @@ class ServerWorker:
         while self.running and running:
             start_time = time.time()
             
+            power_state = self.ipmi.get_chassis_power_status()
+
             raw_temp_data = self.ipmi.retrieve_temperatures_raw()
             if raw_temp_data is None:
                 self.consecutive_failures += 1
@@ -156,7 +161,9 @@ class ServerWorker:
             if self.config.get('fan_control_enabled', True):
                 fan_mode = self.config.get('fan_mode', 'simple')
                 
-                if hottest_cpu:
+                if power_state == "off":
+                    target_fan_speed = 0
+                elif hottest_cpu:
                     crit_thresh = self._to_celsius(self.config.get('critical_temp_threshold', 65))
                     
                     if hottest_cpu >= crit_thresh:
@@ -195,9 +202,32 @@ class ServerWorker:
             else:
                 self._log("info", "Fan control is disabled for this server. Leaving existing fan settings.")
 
-            status_data = {"hottest_cpu_temp": hottest_cpu, "inlet_temp": temps.get('inlet_temp'), "exhaust_temp": temps.get('exhaust_temp'), "power": power, "target_fan_speed": None if isinstance(target_fan_speed, str) else target_fan_speed, "cpus": temps.get('cpu_temps', []), "fans": fans, "psus": psu_statuses}
+            status_data = {
+                "power_state": power_state,
+                "hottest_cpu_temp": hottest_cpu,
+                "inlet_temp": temps.get('inlet_temp'),
+                "exhaust_temp": temps.get('exhaust_temp'),
+                "power": power,
+                "target_fan_speed": None if isinstance(target_fan_speed, str) else target_fan_speed,
+                "cpus": temps.get('cpu_temps', []),
+                "fans": fans,
+                "psus": psu_statuses
+            }
             with status_lock:
-                ALL_SERVERS_STATUS[self.alias] = {"alias": self.alias, "ip": self.config['idrac_ip'], "last_updated": time.strftime("%Y-%m-%d %H:%M:%S %Z"), "hottest_cpu_temp_c": hottest_cpu, "inlet_temp_c": temps.get('inlet_temp'), "exhaust_temp_c": temps.get('exhaust_temp'), "power_consumption_watts": power, "target_fan_speed_percent": target_fan_speed, "cpu_temps_c": temps.get('cpu_temps', []), "actual_fan_rpms": fans, "psu_statuses": psu_statuses}
+                ALL_SERVERS_STATUS[self.alias] = {
+                    "alias": self.alias,
+                    "ip": self.config['idrac_ip'],
+                    "last_updated": time.strftime("%Y-%m-%d %H:%M:%S %Z"),
+                    "power_state": power_state,
+                    "hottest_cpu_temp_c": hottest_cpu,
+                    "inlet_temp_c": temps.get('inlet_temp'),
+                    "exhaust_temp_c": temps.get('exhaust_temp'),
+                    "power_consumption_watts": power,
+                    "target_fan_speed_percent": target_fan_speed,
+                    "cpu_temps_c": temps.get('cpu_temps', []),
+                    "actual_fan_rpms": fans,
+                    "psu_statuses": psu_statuses
+                }
             
             self._publish_mqtt_data(status_data)
             if self.consecutive_failures:
@@ -207,18 +237,36 @@ class ServerWorker:
 
 
     def _publish_mqtt_data(self, status):
+        power_state = status.get('power_state')
+        cpus_data = status.get('cpus', [])
+        fans_data = status.get('fans', [])
+        psus_data = status.get('psus', [])
+
+        if cpus_data:
+            self.known_cpus = max(self.known_cpus, len(cpus_data))
+        for fan in fans_data:
+            fan_slug = f"fan_{re.sub(r'[^a-zA-Z0-9_]+', '', fan['name']).lower()}_rpm"
+            self.known_fans[fan_slug] = fan['name']
+        for psu in psus_data:
+            psu_slug = f"psu_{re.sub(r'[^a-zA-Z0-9_]+', '', psu['name']).lower()}"
+            self.known_psus[psu_slug] = psu['name']
+
         sensors = {
             "power_on_button": {"component": "button", "name": "Power On Server", "icon": "mdi:power", "cmd_topic": f"{self.mqtt.base_topic}/command/power_on"},
             "shutdown_button": {"component": "button", "name": "Shutdown Server", "device_class": "restart", "icon": "mdi:server-off", "cmd_topic": f"{self.mqtt.base_topic}/command/shutdown"},
+            "server_power": {"component": "binary_sensor", "name": "Server Power", "device_class": "power", "icon": "mdi:power"},
             "hottest_cpu_temp": {"component": "sensor", "device_class": "temperature", "unit": "°C"},
             "inlet_temp": {"component": "sensor", "device_class": "temperature", "unit": "°C"},
             "exhaust_temp": {"component": "sensor", "device_class": "temperature", "unit": "°C"},
             "power": {"component": "sensor", "device_class": "power", "unit": "W", "state_class": "measurement", "icon": "mdi:flash"},
             "target_fan_speed": {"component": "sensor", "unit": "%", "icon": "mdi:fan-chevron-up"},
         }
-        for i, _ in enumerate(status.get('cpus', [])): sensors[f"cpu_{i}_temp"] = {"component": "sensor", "name": f"CPU {i} Temperature", "device_class": "temperature", "unit": "°C"}
-        for fan in status.get('fans', []): sensors[f"fan_{re.sub(r'[^a-zA-Z0-9_]+', '', fan['name']).lower()}_rpm"] = {"component": "sensor", "name": f"{fan['name']} RPM", "unit": "RPM", "icon": "mdi:fan"}
-        for psu in status.get('psus', []): sensors[f"psu_{re.sub(r'[^a-zA-Z0-9_]+', '', psu['name']).lower()}"] = {"component": "binary_sensor", "name": psu['name'], "device_class": "problem"}
+        for i in range(max(self.known_cpus, len(cpus_data))):
+            sensors[f"cpu_{i}_temp"] = {"component": "sensor", "name": f"CPU {i} Temperature", "device_class": "temperature", "unit": "°C"}
+        for slug, fan_name in self.known_fans.items():
+            sensors[slug] = {"component": "sensor", "name": f"{fan_name} RPM", "unit": "RPM", "icon": "mdi:fan"}
+        for slug, psu_name in self.known_psus.items():
+            sensors[slug] = {"component": "binary_sensor", "name": psu_name, "device_class": "problem"}
 
         for slug, desc in sensors.items():
             if slug not in self.discovered_sensors:
@@ -228,15 +276,30 @@ class ServerWorker:
             
             if desc['component'] == 'sensor':
                 value = None
-                if slug.startswith('fan_'): value = next((f['rpm'] for f in status['fans'] if f"fan_{re.sub(r'[^a-zA-Z0-9_]+', '', f['name']).lower()}_rpm" == slug), None)
-                elif slug.startswith('cpu_'): value = status['cpus'][int(slug.split('_')[1])] if int(slug.split('_')[1]) < len(status['cpus']) else None
-                else: value = status.get(slug)
+                if slug.startswith('fan_'):
+                    fan_item = next((f for f in fans_data if f"fan_{re.sub(r'[^a-zA-Z0-9_]+', '', f['name']).lower()}_rpm" == slug), None)
+                    if fan_item is not None:
+                        value = fan_item['rpm']
+                    elif power_state == 'off':
+                        value = 0
+                    else:
+                        value = None
+                elif slug.startswith('cpu_'):
+                    cpu_idx = int(slug.split('_')[1])
+                    value = cpus_data[cpu_idx] if cpu_idx < len(cpus_data) else None
+                else:
+                    value = status.get(slug)
                 self.mqtt.publish_state('sensor', slug, value)
-            elif desc['component'] == 'binary_sensor' and slug.startswith('psu_'):
-                psu_name = desc['name']
-                psu_data = next((p for p in status['psus'] if p['name'] == psu_name), None)
-                state = "ON" if psu_data and not psu_data['ok'] else "OFF"
-                self.mqtt.publish_state('binary_sensor', slug, state)
+            elif desc['component'] == 'binary_sensor':
+                if slug == 'server_power':
+                    if power_state:
+                        state = "ON" if power_state == 'on' else "OFF"
+                        self.mqtt.publish_state('binary_sensor', slug, state)
+                elif slug.startswith('psu_'):
+                    psu_name = desc['name']
+                    psu_data = next((p for p in psus_data if p['name'] == psu_name), None)
+                    state = "ON" if psu_data and not psu_data['ok'] else "OFF"
+                    self.mqtt.publish_state('binary_sensor', slug, state)
 
     def cleanup(self):
         self._log("info", "Worker shutting down. Reverting to Dell auto fans.")

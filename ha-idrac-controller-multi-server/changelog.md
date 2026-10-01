@@ -1,3 +1,10 @@
+## 0.1.0-ms.11 - 2026-10-01
+
+* ✨ **New Feature**: Added server host power state monitoring via IPMI (`ipmitool chassis power status`).
+* ✨ **New Feature**: Added a `binary_sensor.<alias>_server_power` entity in Home Assistant (`ON` when server is running, `OFF` when powered off).
+* 🐛 **Bug Fix**: Sensor readings no longer stay frozen on stale values when the server is powered off. When powered off, CPU temperatures are cleared, fans report 0 RPM, and fan regulation is paused.
+* 🎨 **UI Improvement**: Added Host Power status (ON/OFF) to the Web UI dashboard.
+
 ## 0.1.0-ms.10 - 2026-10-01
 
 * ✨ **New Feature**: Added `chassis_power_on` and `chassis_power_control` methods to `IPMIManager` to power on servers via IPMI.
